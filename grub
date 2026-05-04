@@ -1,0 +1,19 @@
+#!/bin/bash
+
+mkdir -p iso/boot/grub
+cp linux-4.19.325/arch/x86/boot/bzImage iso/boot/vmlinuz
+cp wilixos-v0.1.img iso/boot/initrd.img
+
+cat > iso/boot/grub/grub.cfg << 'EOF'                                                    
+set timeout=5         
+set default=0                                           
+
+menuentry "WilixOS" {
+    linux /boot/vmlinuz console=tty0
+    initrd /boot/initrd.img
+}
+EOF
+
+grub-mkrescue -o wilixos.iso iso/ 
+
+echo "готово"
