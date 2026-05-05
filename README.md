@@ -16,17 +16,35 @@ cp ~/wilix/.config .
 make menuconfig # если надо подредактировать самому
 make -j$(nproc) bzImage
 file arch/x86/boot/bzImage # собралось?
+cd ..
+mkdir -p initrd/{bin,etc/init.d,root,proc,sys,dev,usr/{bin,lib,local/sbin,share/terminfo/l}}
+cd initrd/bin
+wget https://busybox.net/downloads/binaries/1.36.1-x86_64-linux-musl/busybox
+wget https://github.com/robxu9/bash-static/releases/download/5.2.015/bash-linux-x86_64 -O bash
+chmod +x busybox && chmod +x bash
 cd ~/wilix
-chmod +x start && chmod +x grub # для исполнения
-./start
-./grub
+sudo apt install musl-tools # семейство дебиан и убунту
+sudo xbps-install cross-x86_64-linux-musl # void
+sudo pacman -S musl # семейство арч
+x86_64-linux-musl-gcc -static -O2 -std=c99 -D_DEFAULT_SOURCE -o wpm wpm.c
+cp wpm ~/initrd/usr/bin
+chmod +x grub && chmod +x start
+./start && ./grub
 qemu-system-x86_64 -cdrom wilixos.iso # запуск
 ```
 
 ------------
 устанавливание приложений:
 
-к сожалению я пока не сделал пакетный мененджер но можете качать библеотеки и приложения вручную, есть тестовая версия браузера но не факт что работает
+```bash
+wpm add nano # текстовый редактор
+wpm add nnn # файловый мененджер
+wpm --list-packages # лист пакетов
+wpm --delete-cache # удалить кэш
+wpm update # обновить список
+wpm search <query> # искать
+```
+кидайте статические бинарники в тг @pristochelovek097 для того чтобы я их добавил в репо
 
 ------------
 инфо:
