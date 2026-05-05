@@ -32,6 +32,7 @@ chmod +x grub && chmod +x start
 ./start && ./grub
 qemu-system-x86_64 -cdrom wilixos.iso # запуск
 ```
+если шота не работает или не собралось пишите в иссуес
 
 ------------
 устанавливание приложений:
