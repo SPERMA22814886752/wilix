@@ -9,7 +9,7 @@ run_init_scripts() {
     if [ -d /etc/init.d ]; then
         echo "running init scripts from /etc/init.d/..."
         
-        # Сортируем скрипты для правильного порядка запуска (S00, S01, etc)
+        # cортируем скрипты для правильного порядка запуска
         for script in $(ls /etc/init.d/S* 2>/dev/null | sort); do
             if [ -x "$script" ]; then
                 echo -n "starting: $(basename $script) "
