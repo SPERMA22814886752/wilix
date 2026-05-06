@@ -28,7 +28,7 @@ sudo xbps-install cross-x86_64-linux-musl # void
 sudo pacman -S musl # семейство арч
 x86_64-linux-musl-gcc -static -O2 -std=c99 -D_DEFAULT_SOURCE -o wpm wpm.c
 cp wpm ~/initrd/usr/bin
-chmod +x grub && chmod +x start
+chmod +x grub start
 ./start && ./grub
 qemu-system-x86_64 -cdrom wilixos.iso # запуск
 ```
