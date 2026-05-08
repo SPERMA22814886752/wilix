@@ -9,7 +9,7 @@ run_init_scripts() {
     if [ -d /etc/init.d ]; then
         echo "running init scripts from /etc/init.d/..."
         
-        # cортируем скрипты для правильного порядка запуска
+        # Сортируем скрипты для правильного порядка запуска (S00, S01, etc)
         for script in $(ls /etc/init.d/S* 2>/dev/null | sort); do
             if [ -x "$script" ]; then
                 echo -n "starting: $(basename $script) "
@@ -50,6 +50,13 @@ export PS1='[wilixos@wilixos \W]\$ '
 # создаём симлинки на busybox для всех команд 
 echo "creating busybox symlinks..."
 /bin/busybox --install -s
+
+# загрузка модулей (если папка есть и в ней что-то завалялось)
+if [ -d /lib/modules ] && [ -n "$(find /lib/modules -name '*.ko' -type f 2>/dev/null | head -n1)" ]; then
+    for mod in $(find /lib/modules -name "*.ko" -type f); do
+        /bin/busybox modprobe $(basename $mod .ko) 2>/dev/null
+    done
+fi
 
 # генеральная уборка экрана
 /bin/busybox clear
@@ -186,7 +193,7 @@ case "$1" in
         # если dhcp не дал в рот, тоесть айпи ставим статику
         if ! ip addr show eth0 | grep -q "inet "; then
             echo "  dhcp failed, using static IP..."
-            ip addr add 10.0.2.15/24 dev eth0
+            ip addr add 192.168.1.100/24 dev eth0
             ip route add default via 10.0.2.2
             echo "nameserver 8.8.8.8" > /etc/resolv.conf
             echo "nameserver 1.1.1.1" >> /etc/resolv.conf
@@ -243,14 +250,4 @@ touch etc/init.d/.keep
 echo "building initrd image with getty support..."
 find . | cpio -o -H newc | gzip > ../wilixos-v0.1.img
 
-echo "=========================================="
-echo "done! image created: ../wilixos-v0.1.img"
-echo ""
-echo "features added:"
-echo "  - getty running on tty1, tty2, tty3, tty4"
-echo "  - switch consoles with Ctrl+Alt+F1..F4"
-echo "  - auto-start init scripts from /etc/init.d/"
-echo ""
-echo "to test in QEMU:"
-echo "qemu-system-x86_64 -kernel /boot/vmlinuz -initrd ../wilixos-v0.1.img -append \"root=/dev/ram0\""
-echo "=========================================="
+echo "ура, запускай ./grub"
