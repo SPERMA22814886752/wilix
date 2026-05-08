@@ -1,0 +1,27 @@
+#!/bin/sh
+
+case "$1" in
+    start)
+        echo "starting getty on virtual consoles..."
+        
+        # запускаем getty на тту 2-7
+        for tty in tty2 tty3 tty4 tty5 tty6 tty7; do
+            if [ -c /dev/$tty ]; then
+                /bin/busybox getty -n -l /bin/bash -i 38400 $tty &
+            fi
+        done
+        ;;
+    stop)
+        echo "stopping getty..."
+        killall busybox getty 2>/dev/null
+        ;;
+    restart)
+        $0 stop
+        sleep 1
+        $0 start
+        ;;
+    *)
+        echo "usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac

@@ -1,0 +1,88 @@
+#!/bin/sh
+
+confirm() {
+    printf "enable network? [y,n]: "
+    read answer
+    case "$answer" in
+        y|Y|yes|Yes|YES)
+            return 0
+            ;;
+        *)
+            echo "operation cancelled."
+            exit 0
+            ;;
+    esac
+}
+
+case "$1" in
+    start)
+        confirm
+        
+        echo "starting network..."
+        
+        # проверка наличия сетевых интерфейсов
+        if [ ! -d /sys/class/net/eth0 ]; then
+            echo "  eth0 not found, skipping..."
+            exit 0
+        fi
+        
+        # поддерживаем интерфейс и поднимаем его
+        ip link set eth0 up
+        
+        # пробуем dhcp
+        if command -v udhcpc > /dev/null 2>&1; then
+            echo "  starting DHCP client (udhcpc)..."
+            udhcpc -i eth0 -n -q &
+            sleep 3
+        fi
+        
+        # если dhcp не дал в рот, тоесть айпи ставим статику
+        if ! ip addr show eth0 | grep -q "inet "; then
+            echo "  dhcp failed, using static IP..."
+            ip addr add 192.168.1.100/24 dev eth0
+            ip route add default via 10.0.2.2
+            echo "nameserver 8.8.8.8" > /etc/resolv.conf
+            echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+        fi
+        
+        # выводим айпи
+        IP=$(ip addr show eth0 | grep "inet " | awk '{print $2}' | cut -d/ -f1)
+        if [ -n "$IP" ]; then
+            echo "  network ready! ip: $IP"
+        else
+            echo "  failed to configure network"
+        fi
+        ;;
+        
+    stop)
+        confirm
+        
+        echo "stopping network..."
+        # убиваем dhcp клиента вайлдберрис
+        killall udhcpc 2>/dev/null
+        # Опускаем интерфейс
+        ip link set eth0 down
+        ;;
+        
+    restart)
+        $0 stop
+        sleep 1
+        $0 start
+        ;;
+        
+    status)
+        # для status подтверждение не требуется
+        if ip addr show eth0 | grep -q "inet "; then
+            echo "Network is up:"
+            ip addr show eth0 | grep "inet "
+            ip route show | grep default
+        else
+            echo "network is down"
+        fi
+        ;;
+        
+    *)
+        echo "usage: $0 {start|stop|restart|status}"
+        exit 1
+        ;;
+esac

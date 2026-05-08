@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# функция для запуска всех скриптов в /etc/init.d/
+run_init_scripts() {
+    if [ -d /etc/init.d ]; then
+        echo "running init scripts from /etc/init.d/..."
+        
+        # Сортируем скрипты для правильного порядка запуска (S00, S01, etc)
+        for script in $(ls /etc/init.d/S* 2>/dev/null | sort); do
+            if [ -x "$script" ]; then
+                echo -n "starting: $(basename $script) "
+                $script start
+                echo "[OK]"
+            fi
+        done
+        
+        # запускаем остальные скрипты
+        for script in $(ls /etc/init.d/* 2>/dev/null | grep -v '/S' | sort); do
+            if [ -x "$script" ]; then
+                echo -n "running: $(basename $script) "
+                $script
+                echo "[OK]"
+            fi
+        done
+    else
+        echo "warning: /etc/init.d/ directory not found"
+    fi
+}
+
+# монтируем файловые системы
+/bin/busybox mount -t proc none /proc
+/bin/busybox mount -t sysfs none /sys
+/bin/busybox mount -t devtmpfs none /dev
+/bin/busybox mount -t devpts devpts /dev/pts  # Нужно для getty/терминалов
+
+stty sane < /dev/tty1
+stty -echo < /dev/tty1 2>/dev/null
+
+# устанавливаем окружение
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin:$PATH
+export HOME=/
+export PS1='[wilixos@wilixos \W]\$ '
+
+/bin/busybox hostname wilix # <- черемша
+
+# создаём симлинки на busybox для всех команд 
+echo "creating busybox symlinks..."
+/bin/busybox --install -s
+
+# загрузка модулей (если папка есть и в ней что-то завалялось)
+if [ -d /lib/modules ] && [ -n "$(find /lib/modules -name '*.ko' -type f 2>/dev/null | head -n1)" ]; then
+    for mod in $(find /lib/modules -name "*.ko" -type f); do
+        /bin/busybox modprobe $(basename $mod .ko) 2>/dev/null
+    done
+fi
+
+# генеральная уборка экрана
+/bin/busybox clear
+
+# велком ту пиздец
+echo "=========================================="
+echo "  wilix v0.2 "
+echo "=========================================="
+echo ""
+echo "welcome to linux!"
+echo ""
+/bin/busybox uname -a
+echo ""
+bash --version
+echo "=========================================="
+
+# запуск всех скриптов
+run_init_scripts
+
+sleep 1
+
+echo "=========================================="
+echo "init scripts completed. starting shell..."
+echo "=========================================="
+
+
+# запуск шашаш баша
+trap '' INT QUIT TSTP
+
+sleep 2
+
+
+echo "switching to /dev/tty1..."
+exec /bin/bash < /dev/tty1 > /dev/tty1 2>&1
