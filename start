@@ -1,90 +1,369 @@
 #!/bin/bash
 
 cd ~/Documents/initrd
-cat > init << 'EOF'                                              
-#!/bin/bash
+cat > ~/Documents/init.c << 'EOF'                                              
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <errno.h>
+#include <sys/mount.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <sys/utsname.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <termios.h>
+#include <time.h>
+#include <sys/sysmacros.h>
 
-# функция для запуска всех скриптов в /etc/init.d/
-run_init_scripts() {
-    if [ -d /etc/init.d ]; then
-        echo "running init scripts from /etc/init.d/..."
-        
-        # cортируем скрипты для правильного порядка запуска
-        for script in $(ls /etc/init.d/S* 2>/dev/null | sort); do
-            if [ -x "$script" ]; then
-                echo -n "starting: $(basename $script) "
-                $script start
-                echo "[OK]"
-            fi
-        done
-        
-        # запускаем остальные скрипты
-        for script in $(ls /etc/init.d/* 2>/dev/null | grep -v '/S' | sort); do
-            if [ -x "$script" ]; then
-                echo -n "running: $(basename $script) "
-                $script
-                echo "[OK]"
-            fi
-        done
-    else
-        echo "warning: /etc/init.d/ directory not found"
-    fi
+/* прототипы вспомогательных функций */
+static void ignore_signals(void);
+static int do_mount(const char *source, const char *target,
+                    const char *fstype, unsigned long flags, const void *data);
+static void setup_console(void);
+static void set_env(void);
+static void set_hostname(void);
+static void install_busybox_symlinks(void);
+static void load_kernel_modules(void);
+static void clear_screen(void);
+static void print_banner(void);
+static void run_init_scripts(void);
+static void spawn_shell(void);
+
+/* запуск busybox-апплета и ожидание */
+static int run_busybox(char *const argv[]);
+
+/* компаратор для сортировки строк */
+static int cmpstring(const void *a, const void *b);
+
+int main(void) {
+    /* стать настоящим init */
+    ignore_signals();
+
+    /* 1. монтирование псевдо-ФС */
+    if (do_mount("proc", "/proc", "proc", 0, NULL) != 0)
+        fprintf(stderr, "mount proc failed\n");
+    if (do_mount("sysfs", "/sys", "sysfs", 0, NULL) != 0)
+        fprintf(stderr, "mount sysfs failed\n");
+    if (do_mount("none", "/dev", "devtmpfs", 0, NULL) != 0)
+        fprintf(stderr, "mount devtmpfs failed\n");
+    if (do_mount("devpts", "/dev/pts", "devpts", 0, NULL) != 0)
+        fprintf(stderr, "mount devpts failed\n");
+
+    /* создаём необходимые девайсы */
+    mknod("/dev/null", S_IFCHR | 0666, makedev(1, 3));
+    mknod("/dev/zero", S_IFCHR | 0666, makedev(1, 5));
+    mknod("/dev/tty", S_IFCHR | 0666, makedev(5, 0));
+    mknod("/dev/tty1", S_IFCHR | 0666, makedev(4, 1));
+
+    /* 2. настройка tty1*/
+    setup_console();
+
+    /* 3. установка переменных окружения */
+    set_env();
+
+    /* 4. хостнаме */
+    set_hostname();
+
+    /* 5. создание симлинков на busybox */
+    install_busybox_symlinks();
+
+    /* 6. загрузка модулей ядра */
+    load_kernel_modules();
+
+    /* 7. очистка экрана */
+    clear_screen();
+
+    /* 8. велкоме */
+    print_banner();
+
+    /* 9. запуск стартовых скриптов /etc/init.d */
+    run_init_scripts();
+
+    /* 10. установка setuid и сообщения */
+    sleep(1);
+    printf("==========================================\n");
+    printf("init scripts completed. starting shell...\n");
+    printf("==========================================\n");
+
+    sleep(1);
+
+    printf("for login:\n");
+    printf("wilix:root\n");
+    printf("root:root\n");
+
+    /* установка setuid для doas */
+    system("chown root:root /usr/bin/doas");
+    system("chmod 4755 /usr/bin/doas");
+    system("chown root:root /etc/doas.conf");
+    system("chmod 600 /etc/doas.conf");
+
+    /* 11. переключение на /dev/tty1 и запуск bash */
+    spawn_shell();
+
+    return 1;
 }
 
-# монтируем файловые системы
-/bin/busybox mount -t proc none /proc
-/bin/busybox mount -t sysfs none /sys
-/bin/busybox mount -t devtmpfs none /dev
-/bin/busybox mount -t devpts devpts /dev/pts  # Нужно для getty/терминалов
+/* игнорируем сигналы int, quit, tstp */
+static void ignore_signals(void) {
+    signal(SIGINT, SIG_IGN);
+    signal(SIGQUIT, SIG_IGN);
+    signal(SIGTSTP, SIG_IGN);
+    /* не надо прерываться */
+    signal(SIGHUP, SIG_IGN);
+    signal(SIGPIPE, SIG_IGN);
+}
 
-stty sane < /dev/tty1
-stty -echo < /dev/tty1 2>/dev/null
+/* обертка для mount(2) */
+static int do_mount(const char *source, const char *target,
+                    const char *fstype, unsigned long flags, const void *data) {
+    if (mount(source, target, fstype, flags, data) != 0) {
+        fprintf(stderr, "mount: %s on %s (%s): %s\n",
+                source, target, fstype, strerror(errno));
+        return -1;
+    }
+    return 0;
+}
 
-# устанавливаем окружение
-export PATH=/bin:/sbin:/usr/bin:/usr/sbin:$PATH
-export HOME=/
-export PS1='[wilixos@wilixos \W]\$ '
+/* stty sane и stty -echo на /dev/tty1 через busybox */
+static void setup_console(void) {
+    pid_t pid;
+    int fd;
 
-/bin/busybox hostname wilix # <- черемша
+    fd = open("/dev/tty1", O_RDWR);
+    if (fd < 0) {
+        fprintf(stderr, "cannot open /dev/tty1: %s\n", strerror(errno));
+        return;
+    }
 
-# создаём симлинки на busybox для всех команд 
-echo "creating busybox symlinks..."
-/bin/busybox --install -s
+    /* stty sane */
+    pid = fork();
+    if (pid == 0) {
+        dup2(fd, STDIN_FILENO);
+        dup2(fd, STDOUT_FILENO);
+        close(fd);
+        execl("/bin/busybox", "busybox", "stty", "sane", (char *)NULL);
+        _exit(1);
+    }
+    waitpid(pid, NULL, 0);
 
-# генеральная уборка экрана
-/bin/busybox clear
+    if (pid == 0) {
+        dup2(fd, STDIN_FILENO);
+        dup2(fd, STDOUT_FILENO);
+        close(fd);
+        execl("/bin/busybox", "busybox", "stty", "-echo", (char *)NULL);
+        _exit(1);
+    }
+    waitpid(pid, NULL, 0); 
 
-# велком ту пиздец
-echo "=========================================="
-echo "  wilix v0.2 "
-echo "=========================================="
-echo ""
-echo "welcome to linux!"
-echo ""
-/bin/busybox uname -a
-echo ""
-bash --version
-echo "=========================================="
+    close(fd);
+}
 
-# запуск всех скриптов
-run_init_scripts
+/* установка окружения */
+static void set_env(void) {
+    setenv("PATH", "/bin:/sbin:/usr/bin:/usr/sbin", 1);
+    setenv("HOME", "/", 1);
+    setenv("PS1", "[\\u@\\h \\W]$ ", 1);
+    setenv("SSL_CERT_FILE", "/etc/ssl/certs/ca-certificates.crt", 1);
+}
 
-sleep 1
+/* установка имени хоста */
+static void set_hostname(void) {
+    if (sethostname("wilix", 5) != 0) {
+        fprintf(stderr, "sethostname failed: %s\n", strerror(errno));
+    }
+}
 
-echo "=========================================="
-echo "init scripts completed. starting shell..."
-echo "=========================================="
+/* запуск busybox --install -s */
+static void install_busybox_symlinks(void) {
+    char *const args[] = { "/bin/busybox", "busybox", "--install", "-s", NULL };
+    run_busybox(args);
+}
 
+/* загрузка модулей из /lib/modules если есть*/
+static void load_kernel_modules(void) {
+    DIR *dir;
+    struct dirent *ent;
+    char path[4096];
+    char modname[256];
+    struct stat st;
 
-# запуск шашаш баша
-trap '' INT QUIT TSTP
+    /* проверяем существование директории */
+    if (stat("/lib/modules", &st) != 0 || !S_ISDIR(st.st_mode))
+        return;
 
-sleep 2
+    dir = opendir("/lib/modules");
+    if (!dir) return;
 
+    /* проход по файлам /lib/modules/ */
+    while ((ent = readdir(dir)) != NULL) {
+        /* нужны только файлы с расширением .ko */
+        char *dot = strrchr(ent->d_name, '.');
+        if (!dot || strcmp(dot, ".ko") != 0)
+            continue;
 
-echo "switching to /dev/tty1..."
-exec /bin/bash < /dev/tty1 > /dev/tty1 2>&1
+        /* полный путь к модулю */
+        snprintf(path, sizeof(path), "/lib/modules/%s", ent->d_name);
+        /* базовое имя без .ko */
+        strncpy(modname, ent->d_name, dot - ent->d_name);
+        modname[dot - ent->d_name] = '\0';
+
+        /* запускаем modprobe */
+        pid_t pid = fork();
+        if (pid == 0) {
+            execl("/bin/busybox", "busybox", "modprobe", modname, (char *)NULL);
+            _exit(1);
+        }
+        waitpid(pid, NULL, 0);
+    }
+    closedir(dir);
+}
+
+/* генеральная очистка */
+static void clear_screen(void) {
+    char *const args[] = { "/bin/busybox", "busybox", "clear", NULL };
+    run_busybox(args);
+}
+
+/* велком ту пиздец */
+static void print_banner(void) {
+    struct utsname uts;
+    printf("==========================================\n");
+    printf("  wilix v0.4 \n");
+    printf("==========================================\n");
+    printf("\n");
+    printf("welcome to linux!\n");
+    printf("\n");
+    if (uname(&uts) == 0) {
+        printf("%s %s %s %s %s\n",
+               uts.sysname, uts.nodename, uts.release,
+               uts.version, uts.machine);
+    }
+    printf("\n");
+
+    char *const args[] = { "/bin/bash", "bash", "--version", NULL };
+    run_busybox(args);  
+\
+    pid_t pid = fork();
+    if (pid == 0) {
+        execl("/bin/bash", "bash", "--version", (char *)NULL);
+        _exit(1);
+    }
+    waitpid(pid, NULL, 0);
+    printf("==========================================\n");
+}
+
+/* запуск скриптов /etc/init.d/ */
+static void run_init_scripts(void) {
+    struct dirent **namelist;
+    int n;
+
+    if (access("/etc/init.d", F_OK) != 0)
+        return;
+
+    n = scandir("/etc/init.d", &namelist, NULL, alphasort);
+    if (n < 0) {
+        fprintf(stderr, "cannot scan /etc/init.d\n");
+        return;
+    }
+
+    /* первый проход: скрипты, начинающиеся с S, с аргументом "start" */
+    for (int i = 0; i < n; i++) {
+        if (namelist[i]->d_name[0] == 'S') {
+            char path[512];
+            snprintf(path, sizeof(path), "/etc/init.d/%s", namelist[i]->d_name);
+
+            /* проверяем, что исполняемый */
+            if (access(path, X_OK) != 0)
+                continue;
+
+            printf("starting: %s ", namelist[i]->d_name);
+            pid_t pid = fork();
+            if (pid == 0) {
+                execl(path, namelist[i]->d_name, "start", (char *)NULL);
+                _exit(1);
+            }
+            int status;
+            waitpid(pid, &status, 0);
+            printf("[OK]\n");
+        }
+    }
+
+    /* второй проход: остальные скрипты, просто запускаем без аргументов */
+    for (int i = 0; i < n; i++) {
+        if (namelist[i]->d_name[0] != 'S') {
+            char path[512];
+            snprintf(path, sizeof(path), "/etc/init.d/%s", namelist[i]->d_name);
+
+            if (access(path, X_OK) != 0)
+                continue;
+
+            printf("running: %s ", namelist[i]->d_name);
+            pid_t pid = fork();
+            if (pid == 0) {
+                execl(path, namelist[i]->d_name, (char *)NULL);
+                _exit(1);
+            }
+            int status;
+            waitpid(pid, &status, 0);
+            printf("[OK]\n");
+        }
+    }
+
+    /* освобождаем память жопа */
+    for (int i = 0; i < n; i++)
+        free(namelist[i]);
+    free(namelist);
+}
+
+/* запуск оболочки */
+static void spawn_shell(void) {
+    int fd = open("/dev/tty1", O_RDWR);
+    if (fd < 0) {
+        fprintf(stderr, "fatal: cannot open /dev/tty1: %s\n", strerror(errno));
+        exit(1);
+    }
+
+    if (setsid() == -1) {
+        perror("setsid");
+        exit(1);
+    }
+
+    if (ioctl(fd, TIOCSCTTY, 1) == -1) {
+        perror("TIOCSCTTY");
+    }
+
+    dup2(fd, STDIN_FILENO);
+    dup2(fd, STDOUT_FILENO);
+    dup2(fd, STDERR_FILENO);
+    if (fd > 2)
+        close(fd);
+
+    /* используем /bin/login */
+    execl("/bin/login", "login", "-p", (char *)NULL);
+    execl("/bin/sh", "sh", (char *)NULL);
+
+    fprintf(stderr, "fatal: cannot launch shell\n");
+    exit(1);
+}
+
+/* утилита для запуска busybox-апплетов */
+static int run_busybox(char *const argv[]) {
+    pid_t pid = fork();
+    if (pid == 0) {
+        execv("/bin/busybox", argv);
+        _exit(1);
+    }
+    int status;
+    waitpid(pid, &status, 0);
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+}
 EOF
+
+gcc -static -O2 -o ~/Documents/initrd/init ~/Documents/init.c
 
 chmod +x init
 
@@ -146,91 +425,87 @@ chmod +x etc/init.d/99-consoles
 
 cat > etc/init.d/S03-network << 'EOF'
 #!/bin/sh
-
 confirm() {
-    printf "enable network? [y,n]: "
-    read answer
-    case "$answer" in
-        y|Y|yes|Yes|YES)
-            return 0
+printf "enable network? [y,n]: "
+read answer
+case "$answer" in
+y|Y|yes|Yes|YES)
+return 0
             ;;
-        *)
-            echo "operation cancelled."
-            exit 0
+*)
+echo "operation cancelled."
+exit 0
             ;;
-    esac
+esac
+}
+
+# определяем виртуалка ли это
+is_virtual() {
+    # проверяем наличие virtio, hyperv и т.д.
+    if grep -qi "hypervisor\|kvm\|virtualbox\|xen" /proc/cpuinfo; then
+        return 0
+    fi
+    if [ -d /sys/hypervisor ]; then
+        return 0
+    fi
+    return 1
 }
 
 case "$1" in
-    start)
-        confirm
-        
-        echo "starting network..."
-        
-        # проверка наличия сетевых интерфейсов
-        if [ ! -d /sys/class/net/eth0 ]; then
-            echo "  eth0 not found, skipping..."
-            exit 0
-        fi
-        
-        # поддерживаем интерфейс и поднимаем его
-        ip link set eth0 up
-        
-        # пробуем dhcp
-        if command -v udhcpc > /dev/null 2>&1; then
-            echo "  starting DHCP client (udhcpc)..."
-            udhcpc -i eth0 -n -q &
-            sleep 3
-        fi
-        
-        # если dhcp не дал в рот, тоесть айпи ставим статику
-        if ! ip addr show eth0 | grep -q "inet "; then
-            echo "  dhcp failed, using static IP..."
-            ip addr add 10.0.2.15/24 dev eth0
-            ip route add default via 10.0.2.2
-            echo "nameserver 8.8.8.8" > /etc/resolv.conf
-            echo "nameserver 1.1.1.1" >> /etc/resolv.conf
-        fi
-        
-        # выводим айпи
-        IP=$(ip addr show eth0 | grep "inet " | awk '{print $2}' | cut -d/ -f1)
-        if [ -n "$IP" ]; then
-            echo "  network ready! ip: $IP"
-        else
-            echo "  failed to configure network"
-        fi
+start)
+confirm
+echo "starting network..."
+if [ ! -d /sys/class/net/eth0 ]; then
+echo "  eth0 not found, skipping..."
+exit 0
+fi
+
+ip link set eth0 up
+
+# определяем IP в зависимости от железа
+if is_virtual; then
+    echo "  virtual machine detected, using 10.x.x.x"
+    ip addr add 10.0.2.15/24 dev eth0
+    ip route add default via 10.0.2.2
+else
+    echo "  real hardware detected, using 192.168.x.x"
+    ip addr add 192.168.1.100/24 dev eth0
+    ip route add default via 192.168.1.1
+fi
+
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+
+IP=$(ip addr show eth0 | grep "inet " | awk '{print $2}' | cut -d/ -f1)
+if [ -n "$IP" ]; then
+    echo "  network ready! ip: $IP"
+else
+    echo "  failed to configure network"
+fi
         ;;
-        
-    stop)
-        confirm
-        
-        echo "stopping network..."
-        # убиваем dhcp клиента вайлдберрис
-        killall udhcpc 2>/dev/null
-        # Опускаем интерфейс
-        ip link set eth0 down
+stop)
+confirm
+echo "stopping network..."
+killall udhcpc 2>/dev/null
+ip link set eth0 down
         ;;
-        
-    restart)
-        $0 stop
-        sleep 1
-        $0 start
+restart)
+$0 stop
+sleep 1
+$0 start
         ;;
-        
-    status)
-        # для status подтверждение не требуется
-        if ip addr show eth0 | grep -q "inet "; then
-            echo "Network is up:"
-            ip addr show eth0 | grep "inet "
-            ip route show | grep default
-        else
-            echo "network is down"
-        fi
+status)
+if ip addr show eth0 | grep -q "inet "; then
+    echo "Network is up:"
+    ip addr show eth0 | grep "inet "
+    ip route show | grep default
+else
+    echo "network is down"
+fi
         ;;
-        
-    *)
-        echo "usage: $0 {start|stop|restart|status}"
-        exit 1
+*)
+echo "usage: $0 {start|stop|restart|status}"
+exit 1
         ;;
 esac
 EOF
@@ -241,16 +516,8 @@ chmod +x etc/init.d/S03-network
 touch etc/init.d/.keep
 
 echo "building initrd image with getty support..."
-find . | cpio -o -H newc | gzip > ../wilixos-v0.1.img
+find . | cpio -o -H newc | gzip > ../wilixos-v0.4.img
 
 echo "=========================================="
-echo "done! image created: ../wilixos-v0.1.img"
-echo ""
-echo "features added:"
-echo "  - getty running on tty1, tty2, tty3, tty4"
-echo "  - switch consoles with Ctrl+Alt+F1..F4"
-echo "  - auto-start init scripts from /etc/init.d/"
-echo ""
-echo "to test in QEMU:"
-echo "qemu-system-x86_64 -kernel /boot/vmlinuz -initrd ../wilixos-v0.1.img -append \"root=/dev/ram0\""
+echo "done! image created: wilixos-v0.4.img"
 echo "=========================================="
