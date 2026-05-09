@@ -1,6 +1,6 @@
 молодежный дистр wilix с ядром 6.15
 
-![screenshots](logo.png)
+![логотип](screenshots/logo.png)
 
 =============
 
@@ -66,8 +66,8 @@ wpm search <query> # искать
 
 скрины:
 
-![screenshots](grub.png)
-![screenshots](os.png)
+![граб](screenshots/grub.png)
+![ос](screenshots/os.png)
 
 =============
 
