@@ -3,8 +3,6 @@
 *.a
 *.so
 *.so.*
-*.exe
-*.dll
 *.bin
 *.elf
 *.img
