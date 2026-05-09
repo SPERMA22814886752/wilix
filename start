@@ -94,6 +94,7 @@ int main(void) {
     printf("for login:\n");
     printf("wilix:root\n");
     printf("root:root\n");
+    printf("\n");
 
     /* установка setuid для doas */
     system("chown root:root /usr/bin/doas");
@@ -256,7 +257,6 @@ static void print_banner(void) {
     printf("==========================================\n");
 }
 
-/* запуск скриптов /etc/init.d/ */
 static void run_init_scripts(void) {
     struct dirent **namelist;
     int n;
@@ -317,6 +317,15 @@ static void run_init_scripts(void) {
     for (int i = 0; i < n; i++)
         free(namelist[i]);
     free(namelist);
+    
+    /* перемещение gzip */
+    pid_t mvpid = fork();
+    if (mvpid == 0) {
+        execl("/bin/mv", "mv", "/bin/gzip", "/usr/bin/", (char *)NULL);
+        _exit(1);
+    }
+    waitpid(mvpid, NULL, 0);
+    printf("[OK]\n");
 }
 
 /* запуск оболочки */
@@ -516,8 +525,9 @@ chmod +x etc/init.d/S03-network
 touch etc/init.d/.keep
 
 echo "building initrd image with getty support..."
-find . | cpio -o -H newc | gzip > ../wilixos-v0.4.img
+find . | cpio -o -H newc | gzip > wilixos-v0.5.img
 
 echo "=========================================="
-echo "done! image created: wilixos-v0.4.img"
+echo "done! image created: wilixos-v0.5.img"
+echo "execute the ./grub"
 echo "=========================================="
