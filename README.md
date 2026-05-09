@@ -1,5 +1,7 @@
 молодежный дистр wilix с ядром 6.15
 
+![screenshots](logo.png)
+
 =============
 
 сборка:
@@ -11,8 +13,8 @@ sudo apt install libncurses-dev  # семейство дебиан и убунт
 sudo xbps-install ncurses-devel  # void
 sudo pacman -S ncurses           # семейство арч
 wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.15.tar.xz # скачивание ядра
-tar -xf linux-4.19.325.tar.xz # распаковка
-cd ~/linux-4.19.325
+tar -xf linux-6.15.tar.xz # распаковка
+cd ~/linux-6.15.325
 rm .config # удаляем старый конфиг
 cp ~/wilix/.config .
 make menuconfig # если надо подредактировать самому
@@ -31,7 +33,18 @@ x86_64-linux-musl-gcc -static -O2 -std=c99 -D_DEFAULT_SOURCE -o wpm wpm.c
 cp wpm ~/initrd/usr/bin
 chmod +x grub start
 ./start && ./grub
-qemu-system-x86_64 -cdrom wilixos.iso # запуск
+
+sudo xbps-install edk2-ovmf # void
+sudo apt install ovmf     # семейсто дебиан и убунту
+sudo pacman -S edk2-ovmf  # семейство арч
+
+qemu-system-x86_64 \      # запуск
+  -cdrom wilixos.iso \
+  -m 2048 \
+  -machine type=q35 \
+  -bios /usr/share/edk2/x64/OVMF_CODE.fd \
+  -display gtk
+
 ```
 если шота не работает или не собралось пишите в иссуес
 
@@ -48,6 +61,13 @@ wpm update # обновить список
 wpm search <query> # искать
 ```
 кидайте статические бинарники в тг @pristochelovek097 для того чтобы я их добавил в репо
+
+=============
+
+скрины:
+
+![screenshots](grub.png)
+![screenshots](os.png)
 
 =============
 
