@@ -30,3 +30,17 @@ wilix v0.5
 - [X] doas
 - [X] инит на си
 - [X] исправление багов
+
+wilix v0.6
+
+- [ ] nanox
+- [ ] улучшение инита
+- [ ] замена busybox на gnu coreutilsz
+- [ ] исправление багов
+- [ ] timedatectl
+
+wilix v0.7
+
+- [ ] network manager
+- [ ] git
+дальш не ебу
