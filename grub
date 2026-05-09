@@ -1,19 +1,191 @@
 #!/bin/bash
 
-mkdir -p iso/boot/grub
-cp linux-4.19.325/arch/x86/boot/bzImage iso/boot/vmlinuz
-cp wilixos-v0.1.img iso/boot/initrd.img
+ISO_DIR="iso"
+KERNEL="linux-6.15/arch/x86/boot/bzImage"
+INITRD="wilixos-v0.1.img"
+MEMTEST_ZIP="mt86plus_8.00.binaries.zip"
+BACKGROUND="background.png"
 
-cat > iso/boot/grub/grub.cfg << 'EOF'                                                    
-set timeout=5         
-set default=0                                           
+mkdir -p "$ISO_DIR/boot/grub/fonts"
+mkdir -p "$ISO_DIR/boot/grub/themes/wilixos"
+mkdir -p "$ISO_DIR/boot/grub/locale"
+mkdir -p /tmp/memtest
 
-menuentry "WilixOS" {
-    linux /boot/vmlinuz console=tty0
+# копируем ядро и initrd
+cp "$KERNEL" "$ISO_DIR/boot/vmlinuz" || exit 1
+cp "$INITRD" "$ISO_DIR/boot/initrd.img" || exit 1
+
+# ===== фоновая картинка =====
+if [ -f "$BACKGROUND" ]; then
+    cp "$BACKGROUND" "$ISO_DIR/boot/grub/themes/wilixos/background.png"
+fi
+
+# ===== memtest86+ =====
+if [ -f "$MEMTEST_ZIP" ]; then
+    unzip -o "$MEMTEST_ZIP" -d /tmp/memtest/ >/dev/null 2>&1
+    [ -f /tmp/memtest/mt86p_800_x86_64 ] && cp /tmp/memtest/mt86p_800_x86_64 "$ISO_DIR/boot/memtest86+x64.efi"
+    [ -f /tmp/memtest/mt86p_800_i586 ] && cp /tmp/memtest/mt86p_800_i586 "$ISO_DIR/boot/memtest86+.bin"
+    rm -rf /tmp/memtest
+fi
+
+# ===== шрифты для кириллицы =====
+# используем встроенный unicode.pf2
+if [ -f /usr/share/grub/unicode.pf2 ]; then
+    cp /usr/share/grub/unicode.pf2 "$ISO_DIR/boot/grub/fonts/"
+elif [ -f /boot/grub/fonts/unicode.pf2 ]; then
+    cp /boot/grub/fonts/unicode.pf2 "$ISO_DIR/boot/grub/fonts/"
+fi
+
+# дополнительно генерируем шрифт с кириллицей
+if command -v grub-mkfont &>/dev/null; then
+    for font in /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf; do
+        if [ -f "$font" ]; then
+            # Размер 14, с кириллицей (диапазон 0x400-0x4FF)
+            grub-mkfont -s 14 -o "$ISO_DIR/boot/grub/fonts/dejavu.pf2" \
+                        -r 0x400-0x4FF,0x500-0x52F "$font" 2>/dev/null
+            break
+        fi
+    done
+fi
+
+# ===== тема =====
+cat > "$ISO_DIR/boot/grub/themes/wilixos/theme.txt" << 'THEME'
+title-text: "WilixOS"
+title-font: "DejaVu Sans Bold 16"
+title-color: "#ffffff"
+
+desktop-image: "background.png"
+desktop-color: "#000033"
+
++ boot_menu {
+    left = 25%
+    top = 25%
+    width = 50%
+    height = 50%
+    
+    item_color = "#cccccc"
+    selected_item_color = "#ffffff"
+    item_height = 28
+    item_padding = 8
+    
+    border_color = "#4488cc"
+    border_width = 2
+    background_color = "#00004480"
+    selected_item_background = "#2266aab0"
+    
+    scrollbar = true
+    scrollbar_width = 8
+}
+THEME
+
+# ===== ОСНОВНОЙ КОНФИГ (исправлен для всего железа) =====
+cat > "$ISO_DIR/boot/grub/grub.cfg" << 'GRUBCFG'
+
+# загружаем видеомодули
+insmod efi_gop
+insmod efi_uga
+insmod vbe
+insmod vga
+insmod video_bochs
+insmod video_cirrus
+insmod all_video
+
+# графические модули
+insmod png
+insmod gfxterm
+insmod gfxmenu
+insmod font
+insmod gettext
+
+# загружаем шрифт с кириллицей
+if [ -f ($root)/boot/grub/fonts/unicode.pf2 ]; then
+    loadfont ($root)/boot/grub/fonts/unicode.pf2
+elif [ -f ($root)/boot/grub/fonts/dejavu.pf2 ]; then
+    loadfont ($root)/boot/grub/fonts/dejavu.pf2
+fi
+
+# пробуем разные разрешения
+set gfxmode=1920x1080,1680x1050,1440x900,1280x1024,1024x768,auto
+set gfxpayload=keep
+
+# включаем графический терминал
+terminal_output gfxterm
+
+# тема 
+if [ -f ($root)/boot/grub/themes/wilixos/background.png ]; then
+    if [ -f ($root)/boot/grub/themes/wilixos/theme.txt ]; then
+        set theme=($root)/boot/grub/themes/wilixos/theme.txt
+    fi
+fi
+
+# если тема не загрузилась - задаём цвета явно
+if [ "${theme}" == "" ]; then
+    set menu_color_normal=white/blue
+    set menu_color_highlight=black/cyan
+fi
+
+# таймаут
+set timeout=15
+set default=0
+
+# ============================================
+#  меню
+# ============================================
+
+menuentry "[1] wilixos — обычная загрузка" --class os {
+    linux /boot/vmlinuz console=tty0 quiet
     initrd /boot/initrd.img
 }
-EOF
 
-grub-mkrescue -o wilixos.iso iso/ 
+menuentry "[2] wilixos — безопасный режим" --class safe {
+    linux /boot/vmlinuz console=tty0 nomodeset
+    initrd /boot/initrd.img
+}
 
-echo "готово"
+if [ -f ($root)/boot/memtest86+.bin -o -f ($root)/boot/memtest86+x64.efi ]; then
+    menuentry "[3] Memtest86+ — тест памяти" --class memtest {
+        if [ "${grub_platform}" == "efi" ]; then
+            if [ -f /boot/memtest86+x64.efi ]; then
+                chainloader /boot/memtest86+x64.efi
+            else
+                echo "efi-версия не найдена"
+                sleep 3
+            fi
+        else
+            if [ -f /boot/memtest86+.bin ]; then
+                linux16 /boot/memtest86+.bin
+            else
+                echo "bios-версия не найдена"
+                sleep 3
+            fi
+        fi
+    }
+fi
+
+submenu "[4] дополнительно" {
+    menuentry "однопользовательский режим" {
+        linux /boot/vmlinuz console=tty0 single
+        initrd /boot/initrd.img
+    }
+    menuentry "дебаг ядра" {
+        linux /boot/vmlinuz console=tty0 debug ignore_loglevel
+        initrd /boot/initrd.img
+    }
+}
+
+menuentry "[5] перезагрузка" --class reboot {
+    reboot
+}
+
+menuentry "[6] выключение" --class shutdown {
+    halt
+}
+GRUBCFG
+
+# ===== cборка iso =====
+echo "сборка исошника..."
+grub-mkrescue -o wilixos.iso "$ISO_DIR"
+
+echo ""
+echo "готово: wilixos.iso"
+echo ""
