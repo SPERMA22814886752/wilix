@@ -1,0 +1,17 @@
+*.o
+*.ko
+*.a
+*.so
+*.so.*
+*.exe
+*.dll
+*.bin
+*.elf
+*.img
+*.iso
+*.raw
+
+bin/*
+sbin/*
+usr/bin/*
+usr/sbin/*
