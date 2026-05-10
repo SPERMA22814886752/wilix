@@ -34,8 +34,7 @@ wilix v0.5
 wilix v0.6
 
 - [ ] nanox
-- [ ] улучшение инита
-- [ ] замена busybox на gnu coreutilsz
+- [X] улучшение инита
 - [ ] исправление багов
 - [ ] timedatectl
 
