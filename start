@@ -50,6 +50,10 @@ int main(void) {
     do_mount("proc", "/proc", "proc", 0);
     do_mount("sysfs", "/sys", "sysfs", 0);
     do_mount("none", "/dev", "devtmpfs", 0);
+    mknod("/dev/fb0", S_IFCHR | 0666, makedev(29, 0));   /* framebuffer */
+    mknod("/dev/null", S_IFCHR | 0666, makedev(1, 3));
+    mknod("/dev/zero", S_IFCHR | 0666, makedev(1, 5));
+    mknod("/dev/tty", S_IFCHR | 0666, makedev(5, 0));
     
     /* фикс: создаем папку перед монтированием, шоб не ругалось */
     mkdir("/dev/pts", 0755);
@@ -65,7 +69,7 @@ int main(void) {
     mkdir("/var/log", 0755);
 
     do_log("================================\n");
-    do_log("init started. PID 1 v zvdanii.\n");
+    do_log("init started. pisuninit v0.6\n");
 
     parse_cmdline();
 
@@ -577,8 +581,16 @@ chmod +x etc/init.d/S03-network
 touch etc/init.d/.keep
 
 echo "building initrd image with getty support..."
-find . | cpio -o -H newc | gzip > ../wilixos-v0.6.img
+find . | cpio -o -H newc | gzip > ../wilixos-v0.1.img
 
 echo "=========================================="
-echo "done! image created: wilixos-v0.6.img"
+echo "done! image created: ../wilixos-v0.1.img"
+echo ""
+echo "features added:"
+echo "  - getty running on tty1, tty2, tty3, tty4"
+echo "  - switch consoles with Ctrl+Alt+F1..F4"
+echo "  - auto-start init scripts from /etc/init.d/"
+echo ""
+echo "to test in QEMU:"
+echo "qemu-system-x86_64 -kernel /boot/vmlinuz -initrd ../wilixos-v0.1.img -append \"root=/dev/ram0\""
 echo "=========================================="
