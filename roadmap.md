@@ -33,9 +33,9 @@ wilix v0.5
 
 wilix v0.6
 
-- [ ] nanox
+- [X] nanox
 - [X] улучшение инита
-- [ ] исправление багов
+- [X] исправление багов
 - [ ] timedatectl
 
 wilix v0.7
