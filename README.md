@@ -26,6 +26,7 @@ wget https://busybox.net/downloads/binaries/1.36.1-x86_64-linux-musl/busybox
 wget https://github.com/robxu9/bash-static/releases/download/5.2.015/bash-linux-x86_64 -O bash
 chmod +x busybox && chmod +x bash
 cd ~/wilix
+git https://SPERMA22814886752/wpm.git
 sudo apt install musl-tools # семейство дебиан и убунту
 sudo xbps-install cross-x86_64-linux-musl # void
 sudo pacman -S musl # семейство арч
