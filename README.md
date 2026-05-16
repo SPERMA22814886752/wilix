@@ -26,13 +26,16 @@ wget https://busybox.net/downloads/binaries/1.36.1-x86_64-linux-musl/busybox
 wget https://github.com/robxu9/bash-static/releases/download/5.2.015/bash-linux-x86_64 -O bash
 chmod +x busybox && chmod +x bash
 cd ~/wilix
-git https://SPERMA22814886752/wpm.git
+git clone https://github.com/SPERMA22814886752/wpm.git
 sudo apt install musl-tools # семейство дебиан и убунту
 sudo xbps-install cross-x86_64-linux-musl # void
 sudo pacman -S musl # семейство арч
 x86_64-linux-musl-gcc -static -O2 -std=c99 -D_DEFAULT_SOURCE -o wpm wpm.c
 cp wpm ~/initrd/usr/bin
 chmod +x grub start
+git clone https://github.com/SPERMA22814886752/oneinit.git
+x86_64-linux-musl-gcc -static -O2 -std=c99 -D_DEFAULT_SOURCE -o wpm wpm.c   # если хотите максимально маленький размер инита
+gcc -static -O2 -o init oneinit.c                                           # обычная сборка
 ./start && ./grub
 
 sudo xbps-install edk2-ovmf # void
