@@ -40,7 +40,6 @@ wilix v0.6
 wilix v0.7
 
 - [X] iwd
-- [ ] git
 - [ ] исправление багов
 - [ ] [init] полный нормальный инит
 - [X] [init] дистр в /etc/os-release
