@@ -35,8 +35,8 @@ cp wpm ~/initrd/usr/bin
 chmod +x grub start
 git clone https://github.com/SPERMA22814886752/oneinit.git
 x86_64-linux-musl-gcc -static -O2 -std=c99 -D_DEFAULT_SOURCE -o init oneinit.c   # если хотите максимально маленький размер инита
-cp init ~/initrd/
 gcc -static -O2 -o init oneinit.c                                           # обычная сборка
+cp init ~/initrd/
 ./start && ./grub
 
 sudo xbps-install edk2-ovmf # void
