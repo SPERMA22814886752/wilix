@@ -33,7 +33,7 @@ sudo pacman -S musl # семейство арч
 x86_64-linux-musl-gcc -static -O2 -std=c99 -D_DEFAULT_SOURCE -o wpm wpm.c
 cp wpm ~/initrd/usr/bin
 chmod +x grub start
-mkdir -p ~/initrd && cp ~/wilix/initrd/ ~/initrd
+mkdir -p ~/initrd && cp -r ~/wilix/initrd/* ~/initrd 
 git clone https://github.com/SPERMA22814886752/oneinit.git
 x86_64-linux-musl-gcc -static -O2 -std=c99 -D_DEFAULT_SOURCE -o init oneinit.c   # если хотите максимально маленький размер инита
 gcc -static -O2 -o init oneinit.c                                           # обычная сборка
