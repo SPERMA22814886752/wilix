@@ -33,23 +33,29 @@ sudo pacman -S musl # семейство арч
 x86_64-linux-musl-gcc -static -O2 -std=c99 -D_DEFAULT_SOURCE -o wpm wpm.c
 cp wpm ~/initrd/usr/bin
 chmod +x grub start
+mkdir -p ~/initrd && cp ~/wilix/initrd/ ~/initrd
 git clone https://github.com/SPERMA22814886752/oneinit.git
 x86_64-linux-musl-gcc -static -O2 -std=c99 -D_DEFAULT_SOURCE -o init oneinit.c   # если хотите максимально маленький размер инита
 gcc -static -O2 -o init oneinit.c                                           # обычная сборка
-cp init ~/initrd/
+cp init ~/initrd/sbin
 ./start && ./grub
 
 sudo xbps-install edk2-ovmf # void
 sudo apt install ovmf     # семейсто дебиан и убунту
 sudo pacman -S edk2-ovmf  # семейство арч
 
-qemu-system-x86_64 \      # запуск
-  -cdrom wilixos.iso \
+qemu-system-x86_64 \
+  -cdrom wilixos-uefi.iso \
   -m 2048 \
   -machine type=q35 \
   -bios /usr/share/edk2/x64/OVMF_CODE.fd \
-  -display gtk
+  -display gtk         # уефи
 
+qemu-system-x86_64 \
+  -cdrom wilixos-bios.iso \
+  -m 2048
+  -machine type=q35 \
+  -display gtk          # биос
 ```
 если шота не работает или не собралось пишите в иссуес
 
