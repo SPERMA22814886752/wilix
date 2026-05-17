@@ -8,9 +8,6 @@ case "$1" in
         echo "  tty2 (Ctrl+Alt+F2) - getty active"
         echo "  tty3 (Ctrl+Alt+F3) - getty active"
         echo "  tty4 (Ctrl+Alt+F4) - getty active"
-        echo "  tty5 (Ctrl+Alt+F5) - getty active"
-        echo "  tty6 (Ctrl+Alt+F6) - getty active"
-        echo "  tty7 (Ctrl+Alt+F7) - getty active"
         echo "  current console - bash shell"
         echo ""
         ;;
