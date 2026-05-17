@@ -1,6 +1,15 @@
 #!/bin/bash
 
-cd ~/initrd
+cd ~/Documents/initrd
+
+gcc -static -O2 -o ~/Documents/initrd/sbin/init ~/Documents/init.c
+
+chmod +x ~/Documents/initrd/sbin/init
+
+cat > init << 'EOF'
+#!/bin/bash
+exec /sbin/init
+EOF
 
 # создаем директорию для init скриптов
 mkdir -p etc/init.d
@@ -152,16 +161,8 @@ chmod +x etc/init.d/S03-network
 touch etc/init.d/.keep
 
 echo "building initrd image with getty support..."
-find . | cpio -o -H newc | gzip > ../wilixos-v0.1.img
+find . | cpio -o -H newc | gzip > ../wilixos-v0.7.img
 
 echo "=========================================="
-echo "done! image created: ../wilixos-v0.1.img"
-echo ""
-echo "features added:"
-echo "  - getty running on tty1, tty2, tty3, tty4"
-echo "  - switch consoles with Ctrl+Alt+F1..F4"
-echo "  - auto-start init scripts from /etc/init.d/"
-echo ""
-echo "to test in QEMU:"
-echo "qemu-system-x86_64 -kernel /boot/vmlinuz -initrd ../wilixos-v0.1.img -append \"root=/dev/ram0\""
+echo "done! image created: ../wilixos-v0.7.img"
 echo "=========================================="
