@@ -78,7 +78,7 @@ desktop-color: "#000033"
 }
 THEME
 
-# ===== ОСНОВНОЙ КОНФИГ (исправлен для всего железа) =====
+# ===== основной конфиг =====
 cat > "$ISO_DIR/boot/grub/grub.cfg" << 'GRUBCFG'
 
 # загружаем видеомодули
@@ -182,10 +182,31 @@ menuentry "[6] выключение" --class shutdown {
 }
 GRUBCFG
 
-# ===== cборка iso =====
-echo "сборка исошника..."
-grub-mkrescue -o wilixos.iso "$ISO_DIR"
+# ============================================
+# сборка исо образов
+# ============================================
 
-echo ""
-echo "готово: wilixos.iso"
-echo ""
+# директории с модулями grub
+GRUB_BIOS_DIR="/usr/lib/grub/i386-pc"
+GRUB_UEFI_DIR="/usr/lib/grub/x86_64-efi"
+
+echo "----------------------------------------"
+echo "сборка ISO для BIOS (Legacy)..."
+if [ -d "$GRUB_BIOS_DIR" ]; then
+    grub-mkrescue -d "$GRUB_BIOS_DIR" -o wilixos-bios.iso "$ISO_DIR" 2>/dev/null
+    echo "[OK] wilixos-bios.iso готов!"
+else
+    echo "[ОШИБКА] Директория $GRUB_BIOS_DIR не найдена."
+    echo "Установи пакет grub-pc-bin (или аналогичный для твоего дистро)."
+fi
+
+echo "----------------------------------------"
+echo "сборка ISO для UEFI..."
+if [ -d "$GRUB_UEFI_DIR" ]; then
+    grub-mkrescue -d "$GRUB_UEFI_DIR" -o wilixos-uefi.iso "$ISO_DIR" 2>/dev/null
+    echo "[OK] wilixos-uefi.iso готов!"
+else
+    echo "[ошибка] директория $GRUB_UEFI_DIR не найдена."
+    echo "установи пакет grub-efi-amd64-bin (или аналогичный для твоего дистро)."
+fi
+echo "----------------------------------------"
