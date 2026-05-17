@@ -2,8 +2,6 @@
 
 cd ~/Documents/initrd
 
-gcc -static -O2 -o ~/Documents/initrd/sbin/init ~/Documents/init.c
-
 chmod +x ~/Documents/initrd/sbin/init
 
 cat > init << 'EOF'
