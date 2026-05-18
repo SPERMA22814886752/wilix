@@ -59,7 +59,7 @@ qemu-system-x86_64 \
   -machine type=q35 \
   -display gtk          # биос
 ```
-более подробная документация на сайте
+более подробная документация на сайте https://jolly-confirmed-diver.cloudpub.ru/
 
 если шота не работает или не собралось пишите в иссуес
 
@@ -83,6 +83,12 @@ wpm search <query> # искать
 
 ![граб](screenshots/grub.png)
 ![ос](screenshots/os.png)
+
+=============
+
+советы
+
+если не качается то скачайте с зеркала https://jolly-confirmed-diver.cloudpub.ru/wilix
 
 =============
 
