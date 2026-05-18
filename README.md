@@ -21,6 +21,8 @@ make menuconfig # если надо подредактировать самом�
 make -j$(nproc) bzImage
 file arch/x86/boot/bzImage # собралось?
 cd ..
+git clone github.com/SPERMA22814886752/wilix.git
+cp wilix/initrd .
 cd initrd/bin
 wget https://busybox.net/downloads/binaries/1.36.1-x86_64-linux-musl/busybox
 wget https://github.com/robxu9/bash-static/releases/download/5.2.015/bash-linux-x86_64 -O bash
@@ -57,6 +59,8 @@ qemu-system-x86_64 \
   -machine type=q35 \
   -display gtk          # биос
 ```
+более подробная документация на сайте
+
 если шота не работает или не собралось пишите в иссуес
 
 =============
