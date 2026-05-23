@@ -6,7 +6,7 @@ case "$1" in
         
         # запускаем нормальный getty на tty 2-7
         # без всяких -n и -l, чтобы вызывался штатный /bin/login
-        for tty in tty2 tty3 tty4 tty5 tty6 tty7; do
+        for tty in tty3 tty4 tty5 tty6 tty7 tty8; do
             if [ -c /dev/$tty ]; then
                 /bin/busybox getty 38400 $tty &
             fi

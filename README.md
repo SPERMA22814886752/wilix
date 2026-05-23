@@ -14,12 +14,14 @@ sudo xbps-install ncurses-devel  # void
 sudo pacman -S ncurses           # семейство арч
 wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.15.tar.xz # скачивание ядра
 tar -xf linux-6.15.tar.xz # распаковка
-cd ~/linux-6.15.325
+cd ~/linux-6.15
 rm .config # удаляем старый конфиг
 cp ~/wilix/.config .
 make menuconfig # если надо подредактировать самому
 make -j$(nproc) bzImage
 file arch/x86/boot/bzImage # собралось?
+make -j$(nproc) modules
+make INSTALL_MOD_PATH=~/wilix/initrd modules_install
 cd ..
 git clone github.com/SPERMA22814886752/wilix.git
 cp wilix/initrd .

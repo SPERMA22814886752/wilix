@@ -2,12 +2,16 @@
 
 cd ~/Documents/initrd
 
-chmod +x ~/Documents/initrd/sbin/init
+gcc -static -O2 -o ~/wilix/initrd/sbin/init ~/wilix/oneinit/init.c
+
+chmod +x ~/wilix/initrd/sbin/init
 
 cat > init << 'EOF'
 #!/bin/bash
 exec /sbin/init
 EOF
+
+chmod +x init
 
 # создаем директорию для init скриптов
 mkdir -p etc/init.d
@@ -19,10 +23,10 @@ cat > etc/init.d/S01-getty << 'GETTY'
 case "$1" in
     start)
         echo "starting getty on virtual consoles..."
-        
+
         # запускаем нормальный getty на tty 2-7
         # без всяких -n и -l, чтобы вызывался штатный /bin/login
-        for tty in tty2 tty3 tty4 tty5 tty6 tty7; do
+        for tty in tty3 tty4 tty5 tty6 tty7 tty8; do
             if [ -c /dev/$tty ]; then
                 /bin/busybox getty 38400 $tty &
             fi
@@ -139,7 +143,7 @@ $0 start
         ;;
 status)
 if ip addr show eth0 | grep -q "inet "; then
-    echo "Network is up:"
+    echo "network is up:"
     ip addr show eth0 | grep "inet "
     ip route show | grep default
 else
@@ -158,9 +162,8 @@ chmod +x etc/init.d/S03-network
 # создаем пустую директорию для спермы228
 touch etc/init.d/.keep
 
-echo "building initrd image with getty support..."
-find . | cpio -o -H newc | gzip > ../wilixos-v0.7.img
+echo "building initrd image..."
+find . -print0 | cpio --null -o -H newc | zstd -19 > ../wilixos-v0.8.img
 
-echo "=========================================="
-echo "done! image created: ../wilixos-v0.7.img"
-echo "=========================================="
+
+echo "done! image created: wilixos-v0.8"
