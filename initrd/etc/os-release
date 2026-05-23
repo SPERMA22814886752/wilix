@@ -1,8 +1,8 @@
 NAME="Wilix Linux"
-VERSION="0.7"
+VERSION="0.8"
 ID=wilix
-VERSION_ID="0.7"
-PRETTY_NAME="Wilix Linux v0.7"
+VERSION_ID="0.8"
+PRETTY_NAME="Wilix Linux v0.8"
 HOME_URL="https://github.com/SPERMA22814886752/wilix"
 SUPPORT_URL="https://t.me/pristochelovek097"
 BUG_REPORT_URL="https://github.com/SPERMA22814886752/wilix/issues"
