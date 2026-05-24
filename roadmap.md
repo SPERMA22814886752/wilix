@@ -55,7 +55,7 @@ wilix v0.8
 
 wilix v0.9
 
-- [ ] [wpm] команда remove
+- [X] [wpm] команда remove
 - [X] добавление в скрипт S03-network беспроводную сеть
 - [ ] [style] цветной PS1 в фирменных цветах
 - [ ] добавление dropbear
