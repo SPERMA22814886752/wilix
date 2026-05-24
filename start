@@ -72,87 +72,86 @@ chmod +x etc/init.d/99-consoles
 
 cat > etc/init.d/S03-network << 'EOF'
 #!/bin/sh
-confirm() {
-printf "enable network? [y,n]: "
-read answer
-case "$answer" in
-y|Y|yes|Yes|YES)
-return 0
-            ;;
-*)
-echo "operation cancelled."
-exit 0
-            ;;
-esac
+
+WPA_SUPPLICANT="/usr/bin/wpa_supplicant"
+WPA_CLI="/usr/bin/wpa_cli"
+WPA_PASS="/usr/bin/wpa_passphrase"
+CONF="/etc/wpa_supplicant.conf"
+
+is_virtual() {
+    grep -qi "hypervisor\|kvm\|virtualbox\|xen" /proc/cpuinfo || [ -d /sys/hypervisor ]
 }
 
-# определяем виртуалка ли это
-is_virtual() {
-    # проверяем наличие virtio, hyperv и т.д.
-    if grep -qi "hypervisor\|kvm\|virtualbox\|xen" /proc/cpuinfo; then
-        return 0
+choose_iface() {
+    echo "select network type:"
+    echo "  1) wifi (wlan0)"
+    echo "  2) ethernet (eth0)"
+    printf "Choice [1/2]: "
+    read choice
+    case "$choice" in
+        1) setup_wifi ;;
+        2) setup_wired ;;
+        *) echo "invalid choice"; exit 1 ;;
+    esac
+}
+
+setup_wifi() {
+    printf "ssid: "
+    read ssid
+    printf "password: "
+    read psk
+
+    echo "ctrl_interface=DIR=/var/run/wpa_supplicant" > "$CONF"
+    echo "update_config=1" >> "$CONF"
+    $WPA_PASS "$ssid" "$psk" >> "$CONF"
+
+    killall wpa_supplicant 2>/dev/null
+    rm -f /var/run/wpa_supplicant/wlan0
+    mkdir -p /var/run/wpa_supplicant
+
+    ip link set wlan0 up
+    sleep 2  
+    $WPA_SUPPLICANT -B -i wlan0 -c "$CONF"
+
+    # Ждём до 30 секунд
+    i=0
+        while [ $i -lt 15 ]; do
+            STATUS=$($WPA_CLI -i wlan0 status 2>/dev/null | grep wpa_state)
+        if [ "$STATUS" = "wpa_state=COMPLETED" ]; then
+            echo "Associated!"
+            udhcpc -i wlan0 -q
+            return
+        fi
+        sleep 2
+        i=$((i + 1))
+    done
+    echo "Wi-Fi: no association, skipping DHCP"
+}
+
+setup_wired() {
+    ip link set eth0 up
+    if is_virtual; then
+        ip addr add 10.0.2.15/24 dev eth0
+        ip route add default via 10.0.2.2
+    else
+        ip addr add 192.168.1.100/24 dev eth0
+        ip route add default via 192.168.1.1
     fi
-    if [ -d /sys/hypervisor ]; then
-        return 0
-    fi
-    return 1
 }
 
 case "$1" in
-start)
-confirm
-echo "starting network..."
-if [ ! -d /sys/class/net/eth0 ]; then
-echo "  eth0 not found, skipping..."
-exit 0
-fi
-
-ip link set eth0 up
-
-# определяем IP в зависимости от железа
-if is_virtual; then
-    echo "  virtual machine detected, using 10.x.x.x"
-    ip addr add 10.0.2.15/24 dev eth0
-    ip route add default via 10.0.2.2
-else
-    echo "  real hardware detected, using 192.168.x.x"
-    ip addr add 192.168.1.100/24 dev eth0
-    ip route add default via 192.168.1.1
-fi
-
-echo "nameserver 8.8.8.8" > /etc/resolv.conf
-echo "nameserver 1.1.1.1" >> /etc/resolv.conf
-
-IP=$(ip addr show eth0 | grep "inet " | awk '{print $2}' | cut -d/ -f1)
-if [ -n "$IP" ]; then
-    echo "  network ready! ip: $IP"
-else
-    echo "  failed to configure network"
-fi
+    start)
+        choose_iface
+        echo "nameserver 8.8.8.8" > /etc/resolv.conf
         ;;
-stop)
-confirm
-echo "stopping network..."
-killall udhcpc 2>/dev/null
-ip link set eth0 down
+    stop)
+        killall wpa_supplicant 2>/dev/null
+        ip link set eth0 down 2>/dev/null
+        ip link set wlan0 down 2>/dev/null
         ;;
-restart)
-$0 stop
-sleep 1
-$0 start
-        ;;
-status)
-if ip addr show eth0 | grep -q "inet "; then
-    echo "network is up:"
-    ip addr show eth0 | grep "inet "
-    ip route show | grep default
-else
-    echo "network is down"
-fi
-        ;;
-*)
-echo "usage: $0 {start|stop|restart|status}"
-exit 1
+    *)
+        echo "Usage: $0 {start|stop}"
+        exit 1
         ;;
 esac
 EOF
