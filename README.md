@@ -34,14 +34,18 @@ git clone https://github.com/SPERMA22814886752/wpm.git
 sudo apt install musl-tools # семейство дебиан и убунту
 sudo xbps-install cross-x86_64-linux-musl # void
 sudo pacman -S musl # семейство арч
+cd wpm
 x86_64-linux-musl-gcc -static -O2 -std=c99 -D_DEFAULT_SOURCE -o wpm wpm.c
 cp wpm ~/initrd/usr/bin
+cd ..
 chmod +x grub start
 mkdir -p ~/initrd && cp -r ~/wilix/initrd/* ~/initrd 
 git clone https://github.com/SPERMA22814886752/oneinit.git
+cd oneinit
 x86_64-linux-musl-gcc -static -O2 -std=c99 -D_DEFAULT_SOURCE -o init oneinit.c   # если хотите максимально маленький размер инита
 gcc -static -O2 -o init oneinit.c                                           # обычная сборка
 cp init ~/initrd/sbin
+cd ..
 ./start && ./grub
 
 sudo xbps-install edk2-ovmf # void
