@@ -9,6 +9,7 @@
 скачайте ядро линукс 6.15 и соберите его с конфигом который приложен в проекте, потом скопируйте скрипты и запустите их, вот примерные команды:
 
 ```bash
+git clone https://github.com/SPERMA22814886752/wilix.git
 sudo apt install libncurses-dev  # семейство дебиан и убунту
 sudo xbps-install ncurses-devel  # void
 sudo pacman -S ncurses           # семейство арч
@@ -23,7 +24,6 @@ file arch/x86/boot/bzImage # собралось?
 make -j$(nproc) modules
 make INSTALL_MOD_PATH=~/wilix/initrd modules_install
 cd ..
-git clone github.com/SPERMA22814886752/wilix.git
 cp wilix/initrd .
 cd initrd/bin
 wget https://busybox.net/downloads/binaries/1.36.1-x86_64-linux-musl/busybox
